@@ -1,0 +1,11 @@
+[jump]
+localhost ansible_connection=local ansible_python_interpreter=python3
+
+[servers]
+
+[all:vars]
+ansible_user=root
+ansible_ssh_private_key_file=~/.ssh/pem
+
+[all:children]
+servers

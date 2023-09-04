@@ -1,0 +1,82 @@
+- name: Install Required Build Packages on Debian
+  apt:
+    name:
+      - autoconf
+      - automake
+      - gcc
+      - libc6
+      - libmcrypt-dev
+      - make
+      - libssl-dev
+      - wget
+    state: present
+    update_cache: yes
+  when: ansible_distribution in ['Debian', 'Ubuntu']
+
+- name: Download NRPE Source File
+  get_url:
+    url: https://github.com/NagiosEnterprises/nrpe/releases/download/nrpe-{{ NRPE_VERSION }}/nrpe-{{ NRPE_VERSION }}.tar.gz
+    dest: /tmp/
+
+- name: Extract NRPE Source File 
+  unarchive:
+    src: /tmp/nrpe-{{ NRPE_VERSION }}.tar.gz
+    dest: /tmp
+    remote_src: yes
+
+- name: Download NRPE Plugins Archive File
+  get_url:
+    url: https://github.com/nagios-plugins/nagios-plugins/releases/download/release-{{ PLUGINS_VER }}/nagios-plugins-{{ PLUGINS_VER }}.tar.gz 
+    dest: /tmp/
+
+- name: Extract NRPE Source File 
+  unarchive:
+    src: /tmp/nrpe-{{ NRPE_VERSION }}.tar.gz
+    dest: /tmp
+    remote_src: yes
+
+- name: Extract NRPE Plugins Source File 
+  unarchive:
+    src: /tmp/nagios-plugins-{{ PLUGINS_VER }}.tar.gz
+    dest: /tmp
+    remote_src: yes
+
+- name: Build and Install Nagios NRPE Agent
+  shell: |
+    ./configure --enable-command-args --with-nrpe-user=nagios --with-nrpe-group=nagios
+    make install-groups-users
+    make all
+    make install
+    make install-config
+    make install-init
+  args:
+    chdir: /tmp/nrpe-{{ NRPE_VERSION }}
+
+- name: Build and Install Nagios NRPE Plugins
+  shell: |
+    ./configure
+    make
+    make install
+  args:
+    chdir: /tmp/nagios-plugins-{{ PLUGINS_VER }}
+
+- name: Configure NRPE agent
+  ansible.builtin.template:
+    src: nrpe.cfg.j2
+    dest: /usr/local/nagios/etc/nrpe.cfg
+      
+- name: Start and Enable NRPE to run on System boot
+  systemd:
+    name: nrpe
+    daemon_reload: yes
+    state: restarted
+    enabled: true
+
+- name: Open NRPE agent port on firewall (iptables)
+  iptables:
+    action: "insert"
+    chain: INPUT
+    protocol: tcp
+    destination_port: "{{ tcp_port }}"
+    source: "{{ NAGIOS_SERVER_IP }}"
+    jump: ACCEPT  
